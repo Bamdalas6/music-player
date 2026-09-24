@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DEFAULT_PLAYLIST } from '../data/songs';
 import { audioEngine } from '../utils/audioEngine';
 import { VoiceRecognitionService, findSongByVoiceQuery } from '../utils/speechRecognition';
+import { searchOnlineSongs } from '../utils/onlineMusicService';
 import TopBar from '../components/TopBar';
 import AlbumArtCard from '../components/AlbumArtCard';
 import TrackInfoBar from '../components/TrackInfoBar';
@@ -21,8 +22,8 @@ export default function AudioPlayerApp() {
   const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(34); // initial 0:34 like in the mockup!
-  const [duration, setDuration] = useState(213); // total e.g. 3:33 (-2:59)
+  const [currentTime, setCurrentTime] = useState(34);
+  const [duration, setDuration] = useState(174);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackMode, setPlaybackMode] = useState('repeat-all'); // 'repeat-all' | 'repeat-one' | 'shuffle'
   const [isFrameEnabled, setIsFrameEnabled] = useState(true);
@@ -34,9 +35,11 @@ export default function AudioPlayerApp() {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
-  // Voice State
+  // Online Search & Voice State
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [isSearchingOnline, setIsSearchingOnline] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const [matchedSong, setMatchedSong] = useState(null);
 
   // Toast
@@ -84,7 +87,7 @@ export default function AudioPlayerApp() {
     if (currentSong) {
       setDuration(currentSong.duration || 180);
     }
-  }, [currentSongIndex]);
+  }, [currentSongIndex, currentSong]);
 
   // Audio Playback Controls
   const handleTogglePlay = () => {
@@ -178,30 +181,88 @@ export default function AudioPlayerApp() {
     showToast(`Mode: ${nextMode.replace('-', ' ').toUpperCase()}`);
   };
 
-  // Voice Search Execution
-  const performVoiceSearch = (queryText) => {
+  // Play a song from search results
+  const playSelectedSong = (song) => {
+    setPlaylist((prev) => {
+      const exists = prev.findIndex((s) => s.id === song.id);
+      if (exists !== -1) {
+        setCurrentSongIndex(exists);
+        return prev;
+      }
+      return [song, ...prev];
+    });
+    setCurrentSongIndex(0);
+
+    if (audioEngine) {
+      audioEngine.playSong(song);
+      setIsPlaying(true);
+    }
+
+    showToast(`Now Playing: "${song.title}" by ${song.artist}`);
+    setIsVoiceModalOpen(false);
+  };
+
+  // Perform Online Real-Time Search & Automatic Playback
+  const performVoiceSearch = async (queryText) => {
+    if (!queryText || !queryText.trim()) return;
+
     setVoiceTranscript(queryText);
-    const match = findSongByVoiceQuery(queryText, playlist);
+    setIsSearchingOnline(true);
+    showToast(`Searching online for "${queryText}"... 🔍`);
 
-    if (match) {
-      setMatchedSong(match);
-      const songIdx = playlist.findIndex((s) => s.id === match.id);
-      if (songIdx !== -1) {
-        setCurrentSongIndex(songIdx);
-      }
-      if (audioEngine) {
-        audioEngine.playSong(match);
-        setIsPlaying(true);
-      }
-      showToast(`Voice Search: Playing "${match.title}"!`);
+    try {
+      // 1. Search global online music catalog (Afrobeats, Amapiano, International, etc.)
+      const onlineResults = await searchOnlineSongs(queryText, 8);
 
-      setTimeout(() => {
+      if (onlineResults && onlineResults.length > 0) {
+        setSearchResults(onlineResults);
+        const topSong = onlineResults[0];
+        setMatchedSong(topSong);
+
+        // Prepend to active playlist
+        setPlaylist((prev) => {
+          const filtered = prev.filter((s) => s.id !== topSong.id);
+          return [topSong, ...filtered];
+        });
+        setCurrentSongIndex(0);
+
+        // Start playback automatically on screen
+        if (audioEngine) {
+          audioEngine.playSong(topSong);
+          setIsPlaying(true);
+        }
+
+        showToast(`Playing online: "${topSong.title}" by ${topSong.artist}! 🎶`);
+
+        setTimeout(() => {
+          setIsVoiceModalOpen(false);
+          setIsVoiceListening(false);
+          setMatchedSong(null);
+        }, 1200);
+      } else {
+        // Fallback to local catalog
+        const localMatch = findSongByVoiceQuery(queryText, playlist);
+        if (localMatch) {
+          const songIdx = playlist.findIndex((s) => s.id === localMatch.id);
+          if (songIdx !== -1) {
+            setCurrentSongIndex(songIdx);
+          }
+          if (audioEngine) {
+            audioEngine.playSong(localMatch);
+            setIsPlaying(true);
+          }
+          showToast(`Playing: "${localMatch.title}"`);
+        } else {
+          showToast(`No online or local match for "${queryText}".`);
+        }
         setIsVoiceModalOpen(false);
-        setIsVoiceListening(false);
-        setMatchedSong(null);
-      }, 1500);
-    } else {
-      showToast(`No exact match for "${queryText}". Playing top pick.`);
+      }
+    } catch (err) {
+      console.error('Error during online song search:', err);
+      showToast(`Search error. Playing closest match.`);
+    } finally {
+      setIsSearchingOnline(false);
+      setIsVoiceListening(false);
     }
   };
 
@@ -209,9 +270,9 @@ export default function AudioPlayerApp() {
     setIsVoiceModalOpen(true);
     setVoiceTranscript('');
     setMatchedSong(null);
+    setSearchResults([]);
 
     if (!voiceServiceRef.current || !voiceServiceRef.current.isSupported) {
-      // Speech recognition not available, show interactive modal with text/suggestions
       setIsVoiceListening(false);
       return;
     }
@@ -226,7 +287,7 @@ export default function AudioPlayerApp() {
         performVoiceSearch(final);
       },
       onError: (err) => {
-        console.warn('Voice recognition error/denied:', err);
+        console.warn('Voice recognition error or denied:', err);
         setIsVoiceListening(false);
       },
       onEnd: () => {
@@ -306,7 +367,10 @@ export default function AudioPlayerApp() {
         }}
         transcript={voiceTranscript}
         isListening={isVoiceListening}
+        isSearchingOnline={isSearchingOnline}
+        searchResults={searchResults}
         onPerformSearch={performVoiceSearch}
+        onSelectSong={playSelectedSong}
         matchedSong={matchedSong}
       />
 

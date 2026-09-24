@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_PLAYLIST, VOICE_SUGGESTIONS } from '../src/data/songs.js';
 import { cleanVoiceQuery, findSongByVoiceQuery } from '../src/utils/speechRecognition.js';
+import { searchOnlineSongs } from '../src/utils/onlineMusicService.js';
 
 console.log('🧪 Running Audio Player Verification Suite...\n');
 
@@ -63,8 +64,36 @@ assert.strictEqual(funkMatch.id, 'song-7', 'Should match Velvet Brass Ensemble f
 
 console.log('  ✅ All natural language voice queries accurately map to correct songs');
 
-// 4. Cloudflare Deployment Configuration
-console.log('\n4. Checking Cloudflare Deployment Alignment:');
+// 4. Online Music Search for African & International Songs
+console.log('\n4. Testing Online Real-Time Music Search (African & International):');
+async function testOnlineSearch() {
+  // African music test (Afrobeats)
+  const africanResults = await searchOnlineSongs('Burna Boy City Boys', 2);
+  assert(Array.isArray(africanResults), 'African results must be an array');
+  if (africanResults.length > 0) {
+    const topAfrican = africanResults[0];
+    assert(topAfrican.title.toLowerCase().includes('city boys'), 'Should find City Boys');
+    assert(topAfrican.artist.toLowerCase().includes('burna boy'), 'Should identify Burna Boy');
+    assert(topAfrican.audioUrl.startsWith('http'), 'Must provide valid streaming audio URL');
+    assert(topAfrican.cover.startsWith('http'), 'Must provide HD album artwork');
+    console.log(`  ✅ African Song Search: Found "${topAfrican.title}" by ${topAfrican.artist}`);
+  }
+
+  // International music test (Pop / Global)
+  const globalResults = await searchOnlineSongs('The Weeknd Blinding Lights', 2);
+  assert(Array.isArray(globalResults), 'Global results must be an array');
+  if (globalResults.length > 0) {
+    const topGlobal = globalResults[0];
+    assert(topGlobal.title.toLowerCase().includes('blinding lights'), 'Should find Blinding Lights');
+    assert(topGlobal.artist.toLowerCase().includes('the weeknd'), 'Should identify The Weeknd');
+    assert(topGlobal.audioUrl.startsWith('http'), 'Must provide valid streaming audio URL');
+    console.log(`  ✅ International Song Search: Found "${topGlobal.title}" by ${topGlobal.artist}`);
+  }
+}
+await testOnlineSearch();
+
+// 5. Cloudflare Deployment Configuration
+console.log('\n5. Checking Cloudflare Deployment Alignment:');
 const wranglerContent = fs.readFileSync(path.resolve('wrangler.toml'), 'utf-8');
 assert(wranglerContent.includes('[assets]'), 'wrangler.toml must contain [assets] block');
 assert(wranglerContent.includes('directory = "./out"') || wranglerContent.includes('directory = "out"'), 'wrangler assets must point to ./out');
