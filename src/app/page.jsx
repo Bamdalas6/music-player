@@ -25,7 +25,7 @@ export default function AudioPlayerApp() {
   const [currentTime, setCurrentTime] = useState(34);
   const [duration, setDuration] = useState(174);
   const [isMuted, setIsMuted] = useState(false);
-  const [playbackMode, setPlaybackMode] = useState('repeat-all'); // 'repeat-all' | 'repeat-one' | 'shuffle'
+  const [playbackMode, setPlaybackMode] = useState('off'); // 'off' (stop at end) | 'repeat-all' | 'repeat-one' | 'shuffle'
   const [isFrameEnabled, setIsFrameEnabled] = useState(true);
 
   // Modals
@@ -53,6 +53,12 @@ export default function AudioPlayerApp() {
 
   const currentSong = playlist[currentSongIndex] || playlist[0];
   const voiceServiceRef = useRef(null);
+  const playbackModeRef = useRef(playbackMode);
+
+  // Keep ref in sync for event listeners
+  useEffect(() => {
+    playbackModeRef.current = playbackMode;
+  }, [playbackMode]);
 
   // Initialize AudioEngine callbacks
   useEffect(() => {
@@ -66,7 +72,20 @@ export default function AudioPlayerApp() {
     };
 
     audioEngine.onEnded = () => {
-      handleNext();
+      const mode = playbackModeRef.current;
+      if (mode === 'repeat-one') {
+        // Replay current song cleanly
+        audioEngine.seek(0);
+        audioEngine.resume();
+        showToast('Repeating song');
+      } else if (mode === 'repeat-all' || mode === 'shuffle') {
+        handleNext();
+      } else {
+        // Mode is 'off': Cleanly stop! Do NOT play another song!
+        setIsPlaying(false);
+        audioEngine.stop();
+        showToast('Song ended · Stopped');
+      }
     };
 
     audioEngine.onStatusChange = ({ isPlaying: playing }) => {
@@ -77,7 +96,7 @@ export default function AudioPlayerApp() {
 
     return () => {
       if (audioEngine) {
-        audioEngine.pause();
+        audioEngine.stop();
       }
     };
   }, []);
@@ -89,17 +108,17 @@ export default function AudioPlayerApp() {
     }
   }, [currentSongIndex, currentSong]);
 
-  // Audio Playback Controls
+  // Play / Pause / Stop Toggle
   const handleTogglePlay = () => {
     if (!audioEngine) return;
     if (isPlaying) {
       audioEngine.pause();
       setIsPlaying(false);
-      showToast('Paused');
+      showToast('Paused / Stopped ⏸');
     } else {
-      audioEngine.playSong(currentSong);
+      audioEngine.resume();
       setIsPlaying(true);
-      showToast(`Now Playing: ${currentSong.title}`);
+      showToast(`Playing: ${currentSong.title} ▶`);
     }
   };
 
@@ -119,7 +138,7 @@ export default function AudioPlayerApp() {
       audioEngine.playSong(nextSong);
       setIsPlaying(true);
     }
-    showToast(`Skipped to: ${nextSong.title}`);
+    showToast(`Next: ${nextSong.title}`);
   };
 
   const handlePrevious = () => {
@@ -175,14 +194,24 @@ export default function AudioPlayerApp() {
   };
 
   const handleTogglePlaybackMode = () => {
-    const modes = ['repeat-all', 'repeat-one', 'shuffle'];
+    const modes = ['off', 'repeat-all', 'repeat-one', 'shuffle'];
     const nextMode = modes[(modes.indexOf(playbackMode) + 1) % modes.length];
     setPlaybackMode(nextMode);
-    showToast(`Mode: ${nextMode.replace('-', ' ').toUpperCase()}`);
+
+    const labels = {
+      'off': 'Autoplay Off (Stop at end)',
+      'repeat-all': 'Repeat All Songs',
+      'repeat-one': 'Repeat Current Song',
+      'shuffle': 'Shuffle All Songs'
+    };
+    showToast(labels[nextMode] || nextMode);
   };
 
   // Play a song from search results
   const playSelectedSong = (song) => {
+    if (audioEngine) {
+      audioEngine.stop();
+    }
     setPlaylist((prev) => {
       const exists = prev.findIndex((s) => s.id === song.id);
       if (exists !== -1) {
@@ -219,6 +248,11 @@ export default function AudioPlayerApp() {
         const topSong = onlineResults[0];
         setMatchedSong(topSong);
 
+        // Stop previous audio completely before loading new song
+        if (audioEngine) {
+          audioEngine.stop();
+        }
+
         // Prepend to active playlist
         setPlaylist((prev) => {
           const filtered = prev.filter((s) => s.id !== topSong.id);
@@ -226,7 +260,7 @@ export default function AudioPlayerApp() {
         });
         setCurrentSongIndex(0);
 
-        // Start playback automatically on screen
+        // Start playback on screen
         if (audioEngine) {
           audioEngine.playSong(topSong);
           setIsPlaying(true);
@@ -243,6 +277,7 @@ export default function AudioPlayerApp() {
         // Fallback to local catalog
         const localMatch = findSongByVoiceQuery(queryText, playlist);
         if (localMatch) {
+          if (audioEngine) audioEngine.stop();
           const songIdx = playlist.findIndex((s) => s.id === localMatch.id);
           if (songIdx !== -1) {
             setCurrentSongIndex(songIdx);

@@ -10,6 +10,7 @@ class AudioEngine {
     this.synthActive = false;
     this.currentSong = null;
     this.isPlaying = false;
+    this.isPausedByUser = false;
     this.currentTime = 0;
     this.duration = 0;
 
@@ -20,7 +21,7 @@ class AudioEngine {
   }
 
   initContext() {
-    if (!this.audioContext) {
+    if (!this.audioContext && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.audioContext = new AudioCtx();
@@ -33,20 +34,26 @@ class AudioEngine {
       }
     }
     if (this.audioContext && this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(() => {});
     }
   }
 
   playSong(song) {
-    this.initContext();
+    this.isPausedByUser = false;
     this.stopSynth();
     this.currentSong = song;
     this.currentTime = 0;
     this.duration = song.duration || 180;
+    this.isPlaying = true;
 
+    // Completely detach event listeners from any previous audio element
     if (this.audio) {
+      this.audio.onended = null;
+      this.audio.onerror = null;
+      this.audio.ontimeupdate = null;
       this.audio.pause();
-      this.audio.src = '';
+      this.audio.removeAttribute('src');
+      this.audio.load();
     }
 
     this.audio = new Audio();
@@ -54,43 +61,62 @@ class AudioEngine {
     this.audio.src = song.audioUrl;
     this.audio.volume = this.isMuted ? 0 : this.volume;
 
-    // Attach HTML5 audio events
-    this.audio.addEventListener('timeupdate', () => {
+    // Attach clean HTML5 audio events
+    this.audio.ontimeupdate = () => {
+      if (this.isPausedByUser) return;
       this.currentTime = this.audio.currentTime;
-      if (this.audio.duration && !isNaN(this.audio.duration)) {
+      if (this.audio.duration && !isNaN(this.audio.duration) && this.audio.duration > 0) {
         this.duration = this.audio.duration;
       }
       if (this.onTimeUpdate) {
         this.onTimeUpdate(this.currentTime, this.duration);
       }
-    });
+    };
 
-    this.audio.addEventListener('ended', () => {
+    this.audio.onended = () => {
+      // If user paused or interrupted, ignore ended event
+      if (this.isPausedByUser || !this.isPlaying) return;
       this.isPlaying = false;
+      if (this.onStatusChange) this.onStatusChange({ isPlaying: false, isSynth: false });
       if (this.onEnded) this.onEnded();
-    });
+    };
 
-    this.audio.addEventListener('error', (err) => {
-      console.warn('Network audio stream blocked or failed, falling back to Web Audio Synthesizer Engine:', err);
+    this.audio.onerror = () => {
+      // If user stopped or changed song, do not trigger fallback or next
+      if (this.isPausedByUser || !this.isPlaying) return;
+      console.warn('Network audio stream unavailable, using audio synthesizer fallback.');
       this.startSynth(song);
-    });
+    };
 
     const playPromise = this.audio.play();
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
+          if (this.isPausedByUser) {
+            // User paused while play was resolving
+            this.audio.pause();
+            this.isPlaying = false;
+            if (this.onStatusChange) this.onStatusChange({ isPlaying: false, isSynth: false });
+            return;
+          }
           this.isPlaying = true;
           if (this.onStatusChange) this.onStatusChange({ isPlaying: true, isSynth: false });
         })
-        .catch(() => {
-          // Autoplay or CORS restriction - switch to procedural Web Audio Synth
+        .catch((err) => {
+          // If aborted by user pause, do NOT start synth or cascade!
+          if (this.isPausedByUser || !this.isPlaying || err.name === 'AbortError') {
+            return;
+          }
+          // Only fall back to synth if legitimately blocked and user wants it playing
           this.startSynth(song);
         });
     }
   }
 
   startSynth(song) {
+    if (this.isPausedByUser) return;
     this.initContext();
+    this.stopSynth();
     this.synthActive = true;
     this.isPlaying = true;
     if (this.onStatusChange) this.onStatusChange({ isPlaying: true, isSynth: true });
@@ -106,11 +132,14 @@ class AudioEngine {
     const intervalMs = Math.round((60 / profile.tempo) * 1000) / 2;
 
     this.synthInterval = setInterval(() => {
-      if (!this.isPlaying || !this.audioContext) return;
+      if (!this.isPlaying || this.isPausedByUser || !this.audioContext) {
+        this.stopSynth();
+        return;
+      }
 
       this.currentTime += intervalMs / 1000;
       if (this.currentTime >= this.duration) {
-        this.currentTime = 0;
+        this.stop();
         if (this.onEnded) this.onEnded();
         return;
       }
@@ -119,7 +148,6 @@ class AudioEngine {
         this.onTimeUpdate(this.currentTime, this.duration);
       }
 
-      // Play soft chord / melody notes
       try {
         const chordIndex = Math.floor(step / 4) % profile.chords.length;
         const melodyIndex = step % profile.melody.length;
@@ -127,10 +155,7 @@ class AudioEngine {
         const melodyFreq = profile.melody[melodyIndex];
 
         if (!this.isMuted && this.volume > 0) {
-          // Play melody tone
           this.playTone(melodyFreq, 0.22, profile.waveform || 'sine', 0.12 * this.volume);
-
-          // Play bass / chord root on downbeats
           if (step % 2 === 0 && chord) {
             this.playTone(chord[0] / 2, 0.45, 'triangle', 0.18 * this.volume);
           }
@@ -144,7 +169,7 @@ class AudioEngine {
   }
 
   playTone(freq, duration, type = 'sine', gainVal = 0.1) {
-    if (!this.audioContext || this.isMuted) return;
+    if (!this.audioContext || this.isMuted || this.isPausedByUser) return;
     try {
       const osc = this.audioContext.createOscillator();
       const toneGain = this.audioContext.createGain();
@@ -174,28 +199,56 @@ class AudioEngine {
   }
 
   pause() {
+    this.isPausedByUser = true;
     this.isPlaying = false;
+    this.stopSynth();
+
     if (this.audio) {
-      this.audio.pause();
+      try {
+        this.audio.pause();
+      } catch (e) {
+        // ignore
+      }
     }
-    if (this.synthActive) {
-      // Pause synth timer
-      if (this.synthInterval) clearInterval(this.synthInterval);
+
+    if (this.onStatusChange) {
+      this.onStatusChange({ isPlaying: false, isSynth: false });
     }
-    if (this.onStatusChange) this.onStatusChange({ isPlaying: false, isSynth: this.synthActive });
+  }
+
+  stop() {
+    this.pause();
+    this.currentTime = 0;
+    if (this.audio) {
+      try {
+        this.audio.currentTime = 0;
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (this.onTimeUpdate) {
+      this.onTimeUpdate(0, this.duration);
+    }
   }
 
   resume() {
-    this.initContext();
+    if (!this.currentSong) return;
+    this.isPausedByUser = false;
     this.isPlaying = true;
-    if (this.synthActive && this.currentSong) {
-      this.startSynth(this.currentSong);
-    } else if (this.audio) {
-      this.audio.play().catch(() => {
-        if (this.currentSong) this.startSynth(this.currentSong);
+
+    if (this.audio && this.audio.src && !this.synthActive) {
+      this.audio.play().catch((err) => {
+        if (!this.isPausedByUser) {
+          this.startSynth(this.currentSong);
+        }
       });
+    } else {
+      this.playSong(this.currentSong);
     }
-    if (this.onStatusChange) this.onStatusChange({ isPlaying: true, isSynth: this.synthActive });
+
+    if (this.onStatusChange) {
+      this.onStatusChange({ isPlaying: true, isSynth: this.synthActive });
+    }
   }
 
   seek(time) {
@@ -214,11 +267,7 @@ class AudioEngine {
 
   setVolume(vol) {
     this.volume = Math.max(0, Math.min(1, vol));
-    if (this.volume === 0) {
-      this.isMuted = true;
-    } else {
-      this.isMuted = false;
-    }
+    this.isMuted = this.volume === 0;
     if (this.audio) {
       this.audio.volume = this.isMuted ? 0 : this.volume;
     }
@@ -240,7 +289,6 @@ class AudioEngine {
 
   getFrequencyData() {
     if (!this.analyser) {
-      // Return simulated rhythmic wave if analyser not connected
       return new Uint8Array([30, 60, 120, 180, 140, 90, 45, 20]);
     }
     const dataArray = new Uint8Array(this.analyser.frequencyBinCount);

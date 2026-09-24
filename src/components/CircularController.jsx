@@ -6,6 +6,8 @@ import {
   Volume2,
   VolumeX,
   Mic,
+  Play,
+  Pause,
   MoreHorizontal,
   ListMusic,
   Repeat,
@@ -25,14 +27,32 @@ export default function CircularController({
   onStartVoiceSearch,
   onOpenMore,
   onOpenQueue,
-  playbackMode, // 'repeat-all' | 'repeat-one' | 'shuffle'
+  playbackMode, // 'off' | 'repeat-all' | 'repeat-one' | 'shuffle'
   onTogglePlaybackMode,
   onOpenLyrics,
   isPlaying,
   onTogglePlayPause
 }) {
   return (
-    <div className="px-6 pt-2 pb-6 flex items-center justify-center select-none">
+    <div className="px-6 pt-1 pb-6 flex flex-col items-center justify-center select-none">
+
+      {/* Voice Prompt Bar above the wheel for instant 1-click voice request */}
+      <div className="mb-2">
+        <button
+          type="button"
+          onClick={onStartVoiceSearch}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 active:scale-95 shadow-md border ${
+            isVoiceListening
+              ? 'bg-blue-600 text-white border-blue-400 animate-pulse'
+              : 'bg-[#202126] hover:bg-[#2A2B32] text-blue-400 border-white/10'
+          }`}
+          aria-label="Search and play any song by voice"
+        >
+          <Mic className="w-3.5 h-3.5 text-blue-400" />
+          <span>{isVoiceListening ? 'Listening...' : 'Voice Search Any Song'}</span>
+        </button>
+      </div>
+
       {/* 3x3 Grid / Radial Layout */}
       <div className="relative w-[280px] h-[280px] flex items-center justify-center">
 
@@ -58,7 +78,7 @@ export default function CircularController({
           <ListMusic className="w-5 h-5" />
         </button>
 
-        {/* 3. Bottom-Left: Repeat / Shuffle Toggle */}
+        {/* 3. Bottom-Left: Repeat / Shuffle / Single Mode Toggle */}
         <button
           type="button"
           onClick={onTogglePlaybackMode}
@@ -69,8 +89,10 @@ export default function CircularController({
             <Repeat1 className="w-5 h-5 text-[#C88D66]" />
           ) : playbackMode === 'shuffle' ? (
             <Shuffle className="w-5 h-5 text-[#C88D66]" />
+          ) : playbackMode === 'repeat-all' ? (
+            <Repeat className="w-5 h-5 text-blue-400" />
           ) : (
-            <Repeat className="w-5 h-5" />
+            <Repeat className="w-5 h-5 text-[#636468]" />
           )}
         </button>
 
@@ -137,9 +159,8 @@ export default function CircularController({
             )}
           </button>
 
-          {/* CENTER: Microphone Button (User explicitly specified middle button = microphone) */}
+          {/* CENTER: Dual Play/Pause/Stop and Voice Microphone */}
           <div className="relative">
-            {/* Glowing pulse rings when voice search is listening */}
             {isVoiceListening && (
               <>
                 <span className="absolute -inset-2 rounded-full bg-blue-500/30 animate-ping" />
@@ -149,21 +170,21 @@ export default function CircularController({
 
             <button
               type="button"
-              onClick={onStartVoiceSearch}
-              className={`relative w-16 h-16 rounded-full flex flex-col items-center justify-center shadow-wheel-inner transition-all duration-300 active:scale-95 border ${
-                isVoiceListening
-                  ? 'bg-blue-600 text-white border-blue-400 shadow-blue-500/50'
-                  : 'bg-[#18191C] hover:bg-[#1D1E22] text-white border-white/10'
+              onClick={onTogglePlayPause}
+              className={`relative w-18 h-18 rounded-full flex flex-col items-center justify-center shadow-wheel-inner transition-all duration-200 active:scale-95 border ${
+                isPlaying
+                  ? 'bg-[#1D1E22] hover:bg-[#25262B] text-white border-emerald-500/40'
+                  : 'bg-[#18191C] hover:bg-[#202126] text-white border-white/10'
               }`}
-              aria-label="Voice Search Song"
+              aria-label={isPlaying ? "Stop or Pause Song" : "Play Song"}
             >
-              <Mic
-                className={`w-6 h-6 stroke-[2.2] transition-transform duration-200 ${
-                  isVoiceListening ? 'scale-110 text-white animate-pulse' : 'text-white'
-                }`}
-              />
-              <span className="text-[8px] font-bold uppercase tracking-wider text-blue-400 mt-0.5">
-                {isVoiceListening ? 'Listening' : 'Voice'}
+              {isPlaying ? (
+                <Pause className="w-6 h-6 fill-current text-white transition-transform active:scale-90" />
+              ) : (
+                <Play className="w-6 h-6 fill-current text-white ml-0.5 transition-transform active:scale-90" />
+              )}
+              <span className={`text-[8px] font-bold uppercase tracking-wider mt-0.5 ${isPlaying ? 'text-emerald-400' : 'text-[#8E8E93]'}`}>
+                {isPlaying ? 'PAUSE' : 'PLAY'}
               </span>
             </button>
           </div>
