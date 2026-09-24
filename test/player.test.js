@@ -1,0 +1,77 @@
+import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DEFAULT_PLAYLIST, VOICE_SUGGESTIONS } from '../src/data/songs.js';
+import { cleanVoiceQuery, findSongByVoiceQuery } from '../src/utils/speechRecognition.js';
+
+console.log('🧪 Running Audio Player Verification Suite...\n');
+
+// 1. Data Schema & Asset Integrity
+console.log('1. Checking Playlist Data Integrity:');
+assert(Array.isArray(DEFAULT_PLAYLIST), 'Playlist must be an array');
+assert(DEFAULT_PLAYLIST.length >= 6, 'Must contain at least 6 default songs');
+
+DEFAULT_PLAYLIST.forEach((song) => {
+  assert(song.id, 'Song must have an ID');
+  assert(song.title, `Song ${song.id} missing title`);
+  assert(song.artist, `Song ${song.id} missing artist`);
+  assert(song.cover, `Song ${song.id} missing cover`);
+  assert(song.duration > 0, `Song ${song.id} duration must be positive`);
+  assert(song.audioUrl, `Song ${song.id} missing audioUrl`);
+  assert(Array.isArray(song.moods) && song.moods.length > 0, `Song ${song.id} must have moods`);
+});
+console.log('  ✅ Playlist data adheres to strict schema constraints');
+
+// 2. Initial Song Verification (Mockup Parity)
+console.log('\n2. Verifying Initial Song Mockup Parity:');
+const firstSong = DEFAULT_PLAYLIST[0];
+assert.strictEqual(firstSong.title, 'Sunday Morning');
+assert.strictEqual(firstSong.artist, 'The Velvet Underground');
+assert.strictEqual(firstSong.cover, '/album_biplane.png');
+console.log('  ✅ Initial song matches mockup ("Sunday Morning" by The Velvet Underground with biplane art)');
+
+// 3. Voice Query NLP & Search Matching
+console.log('\n3. Testing Voice Query Intent & Song Matching:');
+
+// Direct Title Match
+const titleMatch = findSongByVoiceQuery('play Sunday Morning');
+assert.strictEqual(titleMatch.id, 'song-1', 'Should match Sunday Morning by title');
+
+// Genre Match: Synthwave
+const synthMatch = findSongByVoiceQuery('can you please play some synthwave music');
+assert.strictEqual(synthMatch.id, 'song-2', 'Should match Midnight Horizon for synthwave query');
+
+// Mood Match: Chill / Study / Coffee
+const lofiMatch = findSongByVoiceQuery('i want to listen to lofi chill coffee');
+assert.strictEqual(lofiMatch.id, 'song-3', 'Should match Tokyo Lo-Fi Club for lofi query');
+
+// Acoustic Match
+const acousticMatch = findSongByVoiceQuery('play acoustic guitar flight');
+assert.strictEqual(acousticMatch.id, 'song-4', 'Should match Acoustic Skies for acoustic query');
+
+// High Energy / Workout
+const energyMatch = findSongByVoiceQuery('play high energy workout beats');
+assert.strictEqual(energyMatch.id, 'song-5', 'Should match Electric Pulse Matrix for workout query');
+
+// Ambient Sleep
+const ambientMatch = findSongByVoiceQuery('play ambient sleep meditation');
+assert.strictEqual(ambientMatch.id, 'song-6', 'Should match Celeste Ambient for sleep meditation');
+
+// Funk
+const funkMatch = findSongByVoiceQuery('put on groovy brass funk');
+assert.strictEqual(funkMatch.id, 'song-7', 'Should match Velvet Brass Ensemble for funk');
+
+console.log('  ✅ All natural language voice queries accurately map to correct songs');
+
+// 4. Cloudflare Deployment Configuration
+console.log('\n4. Checking Cloudflare Deployment Alignment:');
+const wranglerContent = fs.readFileSync(path.resolve('wrangler.toml'), 'utf-8');
+assert(wranglerContent.includes('[assets]'), 'wrangler.toml must contain [assets] block');
+assert(wranglerContent.includes('directory = "./out"') || wranglerContent.includes('directory = "out"'), 'wrangler assets must point to ./out');
+
+const nextConfigContent = fs.readFileSync(path.resolve('next.config.mjs'), 'utf-8');
+assert(nextConfigContent.includes("output: 'export'"), 'next.config.mjs must have output: export for Cloudflare static distribution');
+
+console.log('  ✅ Cloudflare configuration fully aligned (wrangler.toml & next.config.mjs export verified)');
+
+console.log('\n🎉 ALL AUDIO PLAYER TESTS PASSED CLEANLY!\n');

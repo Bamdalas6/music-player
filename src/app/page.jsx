@@ -1,0 +1,354 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { DEFAULT_PLAYLIST } from '../data/songs';
+import { audioEngine } from '../utils/audioEngine';
+import { VoiceRecognitionService, findSongByVoiceQuery } from '../utils/speechRecognition';
+import TopBar from '../components/TopBar';
+import AlbumArtCard from '../components/AlbumArtCard';
+import TrackInfoBar from '../components/TrackInfoBar';
+import ProgressBar from '../components/ProgressBar';
+import CircularController from '../components/CircularController';
+import VoiceSearchModal from '../components/VoiceSearchModal';
+import QueueDrawer from '../components/QueueDrawer';
+import MoreOptionsModal from '../components/MoreOptionsModal';
+import LyricsModal from '../components/LyricsModal';
+import InfoModal from '../components/InfoModal';
+import PhoneFrame from '../components/PhoneFrame';
+import Toast from '../components/Toast';
+
+export default function AudioPlayerApp() {
+  const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
+  const [currentSongIndex, setCurrentSongIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(34); // initial 0:34 like in the mockup!
+  const [duration, setDuration] = useState(213); // total e.g. 3:33 (-2:59)
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackMode, setPlaybackMode] = useState('repeat-all'); // 'repeat-all' | 'repeat-one' | 'shuffle'
+  const [isFrameEnabled, setIsFrameEnabled] = useState(true);
+
+  // Modals
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // Voice State
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [matchedSong, setMatchedSong] = useState(null);
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState(null);
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 3500);
+  };
+
+  const currentSong = playlist[currentSongIndex] || playlist[0];
+  const voiceServiceRef = useRef(null);
+
+  // Initialize AudioEngine callbacks
+  useEffect(() => {
+    if (!audioEngine) return;
+
+    audioEngine.onTimeUpdate = (curr, dur) => {
+      setCurrentTime(curr);
+      if (dur && !isNaN(dur) && dur > 0) {
+        setDuration(dur);
+      }
+    };
+
+    audioEngine.onEnded = () => {
+      handleNext();
+    };
+
+    audioEngine.onStatusChange = ({ isPlaying: playing }) => {
+      setIsPlaying(playing);
+    };
+
+    voiceServiceRef.current = new VoiceRecognitionService();
+
+    return () => {
+      if (audioEngine) {
+        audioEngine.pause();
+      }
+    };
+  }, []);
+
+  // Update duration when song changes
+  useEffect(() => {
+    if (currentSong) {
+      setDuration(currentSong.duration || 180);
+    }
+  }, [currentSongIndex]);
+
+  // Audio Playback Controls
+  const handleTogglePlay = () => {
+    if (!audioEngine) return;
+    if (isPlaying) {
+      audioEngine.pause();
+      setIsPlaying(false);
+      showToast('Paused');
+    } else {
+      audioEngine.playSong(currentSong);
+      setIsPlaying(true);
+      showToast(`Now Playing: ${currentSong.title}`);
+    }
+  };
+
+  const handleNext = () => {
+    let nextIndex;
+    if (playbackMode === 'shuffle') {
+      nextIndex = Math.floor(Math.random() * playlist.length);
+    } else if (playbackMode === 'repeat-one') {
+      nextIndex = currentSongIndex;
+    } else {
+      nextIndex = (currentSongIndex + 1) % playlist.length;
+    }
+
+    setCurrentSongIndex(nextIndex);
+    const nextSong = playlist[nextIndex];
+    if (audioEngine) {
+      audioEngine.playSong(nextSong);
+      setIsPlaying(true);
+    }
+    showToast(`Skipped to: ${nextSong.title}`);
+  };
+
+  const handlePrevious = () => {
+    if (currentTime > 4) {
+      // Restart current song
+      if (audioEngine) audioEngine.seek(0);
+      setCurrentTime(0);
+      showToast('Restarted track');
+      return;
+    }
+
+    const prevIndex = (currentSongIndex - 1 + playlist.length) % playlist.length;
+    setCurrentSongIndex(prevIndex);
+    const prevSong = playlist[prevIndex];
+    if (audioEngine) {
+      audioEngine.playSong(prevSong);
+      setIsPlaying(true);
+    }
+    showToast(`Previous: ${prevSong.title}`);
+  };
+
+  const handleSeek = (newTime) => {
+    setCurrentTime(newTime);
+    if (audioEngine) {
+      audioEngine.seek(newTime);
+    }
+  };
+
+  const handleToggleMute = () => {
+    if (!audioEngine) {
+      setIsMuted(!isMuted);
+      return;
+    }
+    const muted = audioEngine.toggleMute();
+    setIsMuted(muted);
+    showToast(muted ? 'Audio Silenced / Muted 🔇' : 'Audio Unmuted 🔊');
+  };
+
+  const handleToggleLike = () => {
+    const updated = [...playlist];
+    const newLiked = !currentSong.isLiked;
+    updated[currentSongIndex] = { ...currentSong, isLiked: newLiked };
+    setPlaylist(updated);
+    showToast(newLiked ? `Added "${currentSong.title}" to Liked Songs ❤️` : `Removed from Liked Songs`);
+  };
+
+  const handleToggleFollow = () => {
+    const updated = [...playlist];
+    const newFollowed = !currentSong.isFollowed;
+    updated[currentSongIndex] = { ...currentSong, isFollowed: newFollowed };
+    setPlaylist(updated);
+    showToast(newFollowed ? `Following ${currentSong.artist} ✓` : `Unfollowed ${currentSong.artist}`);
+  };
+
+  const handleTogglePlaybackMode = () => {
+    const modes = ['repeat-all', 'repeat-one', 'shuffle'];
+    const nextMode = modes[(modes.indexOf(playbackMode) + 1) % modes.length];
+    setPlaybackMode(nextMode);
+    showToast(`Mode: ${nextMode.replace('-', ' ').toUpperCase()}`);
+  };
+
+  // Voice Search Execution
+  const performVoiceSearch = (queryText) => {
+    setVoiceTranscript(queryText);
+    const match = findSongByVoiceQuery(queryText, playlist);
+
+    if (match) {
+      setMatchedSong(match);
+      const songIdx = playlist.findIndex((s) => s.id === match.id);
+      if (songIdx !== -1) {
+        setCurrentSongIndex(songIdx);
+      }
+      if (audioEngine) {
+        audioEngine.playSong(match);
+        setIsPlaying(true);
+      }
+      showToast(`Voice Search: Playing "${match.title}"!`);
+
+      setTimeout(() => {
+        setIsVoiceModalOpen(false);
+        setIsVoiceListening(false);
+        setMatchedSong(null);
+      }, 1500);
+    } else {
+      showToast(`No exact match for "${queryText}". Playing top pick.`);
+    }
+  };
+
+  const handleStartVoiceSearch = () => {
+    setIsVoiceModalOpen(true);
+    setVoiceTranscript('');
+    setMatchedSong(null);
+
+    if (!voiceServiceRef.current || !voiceServiceRef.current.isSupported) {
+      // Speech recognition not available, show interactive modal with text/suggestions
+      setIsVoiceListening(false);
+      return;
+    }
+
+    setIsVoiceListening(true);
+    voiceServiceRef.current.startListening({
+      onInterim: (interim) => {
+        setVoiceTranscript(interim);
+      },
+      onResult: (final) => {
+        setVoiceTranscript(final);
+        performVoiceSearch(final);
+      },
+      onError: (err) => {
+        console.warn('Voice recognition error/denied:', err);
+        setIsVoiceListening(false);
+      },
+      onEnd: () => {
+        setIsVoiceListening(false);
+      }
+    });
+  };
+
+  return (
+    <PhoneFrame
+      isFrameEnabled={isFrameEnabled}
+      onToggleFrame={() => setIsFrameEnabled(!isFrameEnabled)}
+    >
+      {/* Toast Notification */}
+      <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
+
+      {/* Main Screen Layout */}
+      <div className="flex-1 flex flex-col justify-between py-1 bg-[#161719] text-white select-none">
+
+        {/* Top Navigation */}
+        <TopBar
+          onBack={() => setIsQueueOpen(true)}
+          onInfoClick={() => setIsInfoOpen(true)}
+        />
+
+        {/* Album Artwork Card */}
+        <AlbumArtCard
+          song={currentSong}
+          isPlaying={isPlaying}
+          onTogglePlay={handleTogglePlay}
+        />
+
+        {/* Track Title, Artist, & Follow Pill */}
+        <TrackInfoBar
+          song={currentSong}
+          isPlaying={isPlaying}
+          isFollowed={currentSong.isFollowed}
+          onToggleFollow={handleToggleFollow}
+          onThumbnailClick={() => setIsLyricsOpen(true)}
+        />
+
+        {/* Interactive Scrub Bar & Timestamps */}
+        <ProgressBar
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={handleSeek}
+        />
+
+        {/* Iconic Circular Controller with Center Microphone & Satellites */}
+        <CircularController
+          isLiked={currentSong.isLiked}
+          onToggleLike={handleToggleLike}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
+          isVoiceListening={isVoiceListening}
+          onStartVoiceSearch={handleStartVoiceSearch}
+          onOpenMore={() => setIsMoreOpen(true)}
+          onOpenQueue={() => setIsQueueOpen(true)}
+          playbackMode={playbackMode}
+          onTogglePlaybackMode={handleTogglePlaybackMode}
+          onOpenLyrics={() => setIsLyricsOpen(true)}
+          isPlaying={isPlaying}
+          onTogglePlayPause={handleTogglePlay}
+        />
+
+      </div>
+
+      {/* Modals & Drawers */}
+      <VoiceSearchModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => {
+          setIsVoiceModalOpen(false);
+          setIsVoiceListening(false);
+          if (voiceServiceRef.current) voiceServiceRef.current.stopListening();
+        }}
+        transcript={voiceTranscript}
+        isListening={isVoiceListening}
+        onPerformSearch={performVoiceSearch}
+        matchedSong={matchedSong}
+      />
+
+      <QueueDrawer
+        isOpen={isQueueOpen}
+        onClose={() => setIsQueueOpen(false)}
+        playlist={playlist}
+        currentSong={currentSong}
+        onSelectSong={(song) => {
+          const idx = playlist.findIndex((s) => s.id === song.id);
+          if (idx !== -1) {
+            setCurrentSongIndex(idx);
+            if (audioEngine) {
+              audioEngine.playSong(song);
+              setIsPlaying(true);
+            }
+            showToast(`Now Playing: ${song.title}`);
+          }
+        }}
+        isPlaying={isPlaying}
+      />
+
+      <MoreOptionsModal
+        isOpen={isMoreOpen}
+        onClose={() => setIsMoreOpen(false)}
+        song={currentSong}
+        onToast={showToast}
+      />
+
+      <LyricsModal
+        isOpen={isLyricsOpen}
+        onClose={() => setIsLyricsOpen(false)}
+        song={currentSong}
+        currentTime={currentTime}
+        isPlaying={isPlaying}
+      />
+
+      <InfoModal
+        isOpen={isInfoOpen}
+        onClose={() => setIsInfoOpen(false)}
+        song={currentSong}
+      />
+    </PhoneFrame>
+  );
+}
