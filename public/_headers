@@ -1,0 +1,4 @@
+/*
+  Access-Control-Allow-Origin: *
+  Referrer-Policy: no-referrer-when-downgrade
+  X-Content-Type-Options: nosniff

@@ -108,21 +108,27 @@ console.log('\n6. Checking Audio Engine & Online Streaming Robustness:');
 const audioEngineContent = fs.readFileSync(path.resolve('src/utils/audioEngine.js'), 'utf-8');
 assert(!audioEngineContent.includes("crossOrigin = 'anonymous'"), 'audioEngine must NOT set crossOrigin = anonymous to prevent Apple CDN CORS blocking');
 assert(audioEngineContent.includes('unlockAudio'), 'audioEngine must contain unlockAudio helper for user gesture priming');
+assert(audioEngineContent.includes('getOrCreateAudio'), 'audioEngine must reuse audio instance to preserve mobile gesture permissions');
 assert(audioEngineContent.includes('song.audioFallbackUrl'), 'audioEngine must support audio fallback URLs');
-console.log('  ✅ AudioEngine verified (CORS anonymous restriction omitted, unlockAudio and audioFallbackUrl active)');
+assert(fs.existsSync(path.resolve('public/_headers')), 'public/_headers must exist for Cloudflare Pages CORS and referrer policy');
+console.log('  ✅ AudioEngine verified (CORS anonymous restriction omitted, persistent element reuse, and audioFallbackUrl active)');
 
 // 7. Mobile Viewport Visibility & Responsive Fit Verification
 console.log('\n7. Checking Mobile Viewport & Screen Visibility Configuration:');
 const pageContent = fs.readFileSync(path.resolve('src/app/page.jsx'), 'utf-8');
 assert(pageContent.includes('100dvh'), 'page.jsx must use dynamic viewport units (100dvh) for mobile screens');
 assert(pageContent.includes('pb-safe'), 'page.jsx must include safe area bottom padding for notched devices');
+assert(pageContent.includes('overflow-y-auto'), 'page.jsx must provide scroll fallback for compact screens');
+
+const layoutContent = fs.readFileSync(path.resolve('src/app/layout.jsx'), 'utf-8');
+assert(layoutContent.includes('viewportFit'), 'layout.jsx must configure viewportFit cover for notch containment');
 
 const albumArtContent = fs.readFileSync(path.resolve('src/components/AlbumArtCard.jsx'), 'utf-8');
 assert(albumArtContent.includes('flex-1') && albumArtContent.includes('min-h-0'), 'AlbumArtCard must use flex-1 min-h-0 to adapt dynamically to mobile heights');
 
 const circularControllerContent = fs.readFileSync(path.resolve('src/components/CircularController.jsx'), 'utf-8');
 assert(circularControllerContent.includes('w-[230px]'), 'CircularController must support compact mobile sizing to prevent cutoffs');
-console.log('  ✅ Mobile viewport design verified (100dvh container, dynamic scaling album art, compact tactile D-pad)');
+console.log('  ✅ Mobile viewport design verified (100dvh container, scroll fallback, viewportFit cover, compact tactile D-pad)');
 
 console.log('\n🎉 ALL AUDIO PLAYER TESTS PASSED CLEANLY!\n');
 

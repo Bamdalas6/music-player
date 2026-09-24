@@ -71,7 +71,7 @@ function mapSearchResults(results) {
         cover: secureArtwork,
         duration: 30, // Official direct audio preview duration
         audioUrl: secureAudioUrl,
-        audioFallbackUrl: secureAudioUrl,
+        audioFallbackUrl: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
         genre: item.primaryGenreName || 'International',
         year: releaseYear,
         bitrate: '256 kbps (AAC Stereo Audio Stream)',

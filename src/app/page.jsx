@@ -212,12 +212,8 @@ export default function AudioPlayerApp() {
       audioEngine.stop();
     }
     setPlaylist((prev) => {
-      const exists = prev.findIndex((s) => s.id === song.id);
-      if (exists !== -1) {
-        setCurrentSongIndex(exists);
-        return prev;
-      }
-      return [song, ...prev];
+      const filtered = prev.filter((s) => s.id !== song.id);
+      return [song, ...filtered];
     });
     setCurrentSongIndex(0);
 
@@ -342,7 +338,7 @@ export default function AudioPlayerApp() {
       <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
 
       {/* Main Responsive Music Player Container */}
-      <div className="w-full max-w-md h-full max-h-[100dvh] sm:max-h-[860px] bg-[#161719] flex flex-col justify-between py-1.5 sm:py-3 px-2 sm:px-4 shadow-2xl relative overflow-hidden sm:rounded-[36px] sm:border sm:border-white/5 pb-safe pt-safe">
+      <div className="w-full max-w-md h-full max-h-[100dvh] sm:max-h-[860px] bg-[#161719] flex flex-col justify-between py-1 sm:py-3 px-2 sm:px-4 shadow-2xl relative overflow-y-auto sm:overflow-hidden no-scrollbar sm:rounded-[36px] sm:border sm:border-white/5 pb-safe pt-safe">
 
         {/* Top Navigation */}
         <TopBar
@@ -419,6 +415,7 @@ export default function AudioPlayerApp() {
             if (idx !== -1) {
               setCurrentSongIndex(idx);
               if (audioEngine) {
+                audioEngine.unlockAudio();
                 audioEngine.playSong(song);
                 setIsPlaying(true);
               }

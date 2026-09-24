@@ -5,7 +5,7 @@ export default function AlbumArtCard({ song, isPlaying, onTogglePlay }) {
     <div className="flex-1 min-h-0 w-full px-4 sm:px-6 py-1 sm:py-2 flex items-center justify-center shrink">
       <div
         onClick={onTogglePlay}
-        className="group relative h-full max-h-[38vh] sm:max-h-[340px] aspect-square rounded-[20px] sm:rounded-[28px] overflow-hidden bg-[#1E1F22] shadow-2xl cursor-pointer select-none transition-transform duration-300 active:scale-[0.98] flex items-center justify-center"
+        className="group relative h-full max-h-[28vh] sm:max-h-[340px] aspect-square rounded-[20px] sm:rounded-[28px] overflow-hidden bg-[#1E1F22] shadow-2xl cursor-pointer select-none transition-transform duration-300 active:scale-[0.98] flex items-center justify-center"
       >
         {/* Cover Image */}
         <img

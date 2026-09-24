@@ -66,9 +66,11 @@ class CircularControllerWidget extends StatelessWidget {
         ),
 
         // Main Controller
-        SizedBox(
-          width: 280,
-          height: 280,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: 250,
+            height: 250,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -216,8 +218,9 @@ class CircularControllerWidget extends StatelessWidget {
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   Widget _buildSatelliteButton({required IconData icon, required VoidCallback onTap}) {

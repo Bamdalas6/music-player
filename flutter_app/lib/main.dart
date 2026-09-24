@@ -78,9 +78,18 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF161719),
       body: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
             // Top Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -245,6 +254,11 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
+},
+),
+),
+);
   }
 }
