@@ -104,18 +104,22 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
             ),
 
             // Album Art
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: Image.network(
-                    _currentSong.cover,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: const Color(0xFF222328),
-                      child: const Icon(Icons.music_note, size: 64, color: Colors.white24),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.network(
+                        _currentSong.cover,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: const Color(0xFF222328),
+                          child: const Icon(Icons.music_note, size: 64, color: Colors.white24),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -124,7 +128,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
             // Track Info Bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
               child: Row(
                 children: [
                   ClipRRect(

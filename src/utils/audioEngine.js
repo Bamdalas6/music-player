@@ -38,6 +38,13 @@ class AudioEngine {
     }
   }
 
+  unlockAudio() {
+    this.initContext();
+    if (typeof window !== 'undefined' && !this.audio) {
+      this.audio = new Audio();
+    }
+  }
+
   playSong(song) {
     this.isPausedByUser = false;
     this.stopSynth();
@@ -57,9 +64,14 @@ class AudioEngine {
     }
 
     this.audio = new Audio();
-    this.audio.crossOrigin = 'anonymous';
+    // CRITICAL: Do NOT set anonymous CORS mode on this.audio.
+    // iTunes / Apple CDN audio preview URLs do not consistently return Access-Control-Allow-Origin headers.
+    // Omitting cross-origin attribute allows the browser to play external audio streams via standard HTML5 no-cors mode.
+    this.audio.preload = 'auto';
     this.audio.src = song.audioUrl;
     this.audio.volume = this.isMuted ? 0 : this.volume;
+
+    let fallbackAttempted = false;
 
     // Attach clean HTML5 audio events
     this.audio.ontimeupdate = () => {
@@ -84,6 +96,21 @@ class AudioEngine {
     this.audio.onerror = () => {
       // If user stopped or changed song, do not trigger fallback or next
       if (this.isPausedByUser || !this.isPlaying) return;
+
+      if (!fallbackAttempted && song.audioFallbackUrl && song.audioFallbackUrl !== this.audio.src) {
+        fallbackAttempted = true;
+        console.warn('Primary audio stream failed, attempting fallback URL:', song.audioFallbackUrl);
+        this.audio.src = song.audioFallbackUrl;
+        this.audio.load();
+        const fallbackPromise = this.audio.play();
+        if (fallbackPromise !== undefined) {
+          fallbackPromise.catch(() => {
+            this.startSynth(song);
+          });
+        }
+        return;
+      }
+
       console.warn('Network audio stream unavailable, using audio synthesizer fallback.');
       this.startSynth(song);
     };
@@ -107,6 +134,24 @@ class AudioEngine {
           if (this.isPausedByUser || !this.isPlaying || err.name === 'AbortError') {
             return;
           }
+          if (err.name === 'NotAllowedError') {
+            // Mobile browser blocked autoplay because of expired user gesture token
+            console.warn('Autoplay restricted by browser, awaiting user action.');
+            this.isPlaying = false;
+            if (this.onStatusChange) this.onStatusChange({ isPlaying: false, isSynth: false });
+            return;
+          }
+
+          if (!fallbackAttempted && song.audioFallbackUrl && song.audioFallbackUrl !== this.audio.src) {
+            fallbackAttempted = true;
+            this.audio.src = song.audioFallbackUrl;
+            this.audio.load();
+            this.audio.play().catch(() => {
+              this.startSynth(song);
+            });
+            return;
+          }
+
           // Only fall back to synth if legitimately blocked and user wants it playing
           this.startSynth(song);
         });

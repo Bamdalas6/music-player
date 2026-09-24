@@ -208,6 +208,7 @@ export default function AudioPlayerApp() {
   // Play a song from search results
   const playSelectedSong = (song) => {
     if (audioEngine) {
+      audioEngine.unlockAudio();
       audioEngine.stop();
     }
     setPlaylist((prev) => {
@@ -233,6 +234,9 @@ export default function AudioPlayerApp() {
   const performVoiceSearch = async (queryText) => {
     if (!queryText || !queryText.trim()) return;
 
+    if (audioEngine) {
+      audioEngine.unlockAudio();
+    }
     setVoiceTranscript(queryText);
     setIsSearchingOnline(true);
     showToast(`Searching online for "${queryText}"... 🔍`);
@@ -300,6 +304,9 @@ export default function AudioPlayerApp() {
   };
 
   const handleStartVoiceSearch = () => {
+    if (audioEngine) {
+      audioEngine.unlockAudio();
+    }
     setIsVoiceModalOpen(true);
     setVoiceTranscript('');
     setMatchedSong(null);
@@ -330,12 +337,12 @@ export default function AudioPlayerApp() {
   };
 
   return (
-    <main className="min-h-screen bg-[#111214] flex justify-center text-white antialiased selection:bg-blue-500 selection:text-white">
+    <main className="h-screen h-[100dvh] w-full bg-[#111214] flex items-center justify-center text-white antialiased selection:bg-blue-500 selection:text-white overflow-hidden p-0 sm:p-4">
       {/* Toast Notification */}
       <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
 
       {/* Main Responsive Music Player Container */}
-      <div className="w-full max-w-md min-h-screen bg-[#161719] flex flex-col justify-between py-2 sm:px-2 shadow-2xl relative overflow-hidden sm:my-4 sm:rounded-[36px] sm:border sm:border-white/5">
+      <div className="w-full max-w-md h-full max-h-[100dvh] sm:max-h-[860px] bg-[#161719] flex flex-col justify-between py-1.5 sm:py-3 px-2 sm:px-4 shadow-2xl relative overflow-hidden sm:rounded-[36px] sm:border sm:border-white/5 pb-safe pt-safe">
 
         {/* Top Navigation */}
         <TopBar

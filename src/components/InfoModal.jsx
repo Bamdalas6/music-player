@@ -6,7 +6,7 @@ export default function InfoModal({ isOpen, onClose, song }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-sm bg-[#1C1D21] border border-[#2E3036] rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl space-y-4">
+      <div className="w-full max-w-sm bg-[#1C1D21] border border-[#2E3036] rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto no-scrollbar">
 
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">

@@ -42,7 +42,7 @@ export default function VoiceSearchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-sm bg-[#1E1F24] border border-[#2E3036] rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="w-full max-w-sm bg-[#1E1F24] border border-[#2E3036] rounded-t-[32px] sm:rounded-[32px] p-5 sm:p-6 shadow-2xl relative max-h-[90dvh] flex flex-col overflow-hidden">
 
         {/* Top Gradient Line */}
         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500" />

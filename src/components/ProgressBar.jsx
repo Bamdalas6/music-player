@@ -22,12 +22,12 @@ export default function ProgressBar({ currentTime = 0, duration = 180, onSeek })
   };
 
   return (
-    <div className="px-6 py-2 select-none">
+    <div className="px-4 sm:px-6 py-0.5 sm:py-1.5 select-none shrink-0">
       {/* Interactive Bar */}
       <div
         ref={progressBarRef}
         onClick={handleSeekClick}
-        className="group relative h-4 flex items-center cursor-pointer"
+        className="group relative h-3 sm:h-4 flex items-center cursor-pointer"
       >
         {/* Track Background */}
         <div className="w-full h-1 bg-[#2C2D32] rounded-full overflow-hidden transition-all duration-150 group-hover:h-1.5">
@@ -46,7 +46,7 @@ export default function ProgressBar({ currentTime = 0, duration = 180, onSeek })
       </div>
 
       {/* Timestamps */}
-      <div className="flex items-center justify-between text-[11px] font-medium text-[#8E8E93] pt-0.5 tracking-tight">
+      <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-medium text-[#8E8E93] pt-0.5 tracking-tight">
         <span>{formatTime(currentTime)}</span>
         <span>-{formatTime(remainingSeconds)}</span>
       </div>

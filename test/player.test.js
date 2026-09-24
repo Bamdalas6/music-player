@@ -103,4 +103,26 @@ assert(nextConfigContent.includes("output: 'export'"), 'next.config.mjs must hav
 
 console.log('  ✅ Cloudflare configuration fully aligned (wrangler.toml & next.config.mjs export verified)');
 
+// 6. Online Audio Streaming & CORS Engine Verification
+console.log('\n6. Checking Audio Engine & Online Streaming Robustness:');
+const audioEngineContent = fs.readFileSync(path.resolve('src/utils/audioEngine.js'), 'utf-8');
+assert(!audioEngineContent.includes("crossOrigin = 'anonymous'"), 'audioEngine must NOT set crossOrigin = anonymous to prevent Apple CDN CORS blocking');
+assert(audioEngineContent.includes('unlockAudio'), 'audioEngine must contain unlockAudio helper for user gesture priming');
+assert(audioEngineContent.includes('song.audioFallbackUrl'), 'audioEngine must support audio fallback URLs');
+console.log('  ✅ AudioEngine verified (CORS anonymous restriction omitted, unlockAudio and audioFallbackUrl active)');
+
+// 7. Mobile Viewport Visibility & Responsive Fit Verification
+console.log('\n7. Checking Mobile Viewport & Screen Visibility Configuration:');
+const pageContent = fs.readFileSync(path.resolve('src/app/page.jsx'), 'utf-8');
+assert(pageContent.includes('100dvh'), 'page.jsx must use dynamic viewport units (100dvh) for mobile screens');
+assert(pageContent.includes('pb-safe'), 'page.jsx must include safe area bottom padding for notched devices');
+
+const albumArtContent = fs.readFileSync(path.resolve('src/components/AlbumArtCard.jsx'), 'utf-8');
+assert(albumArtContent.includes('flex-1') && albumArtContent.includes('min-h-0'), 'AlbumArtCard must use flex-1 min-h-0 to adapt dynamically to mobile heights');
+
+const circularControllerContent = fs.readFileSync(path.resolve('src/components/CircularController.jsx'), 'utf-8');
+assert(circularControllerContent.includes('w-[230px]'), 'CircularController must support compact mobile sizing to prevent cutoffs');
+console.log('  ✅ Mobile viewport design verified (100dvh container, dynamic scaling album art, compact tactile D-pad)');
+
 console.log('\n🎉 ALL AUDIO PLAYER TESTS PASSED CLEANLY!\n');
+
