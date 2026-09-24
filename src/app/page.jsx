@@ -15,7 +15,6 @@ import QueueDrawer from '../components/QueueDrawer';
 import MoreOptionsModal from '../components/MoreOptionsModal';
 import LyricsModal from '../components/LyricsModal';
 import InfoModal from '../components/InfoModal';
-import PhoneFrame from '../components/PhoneFrame';
 import Toast from '../components/Toast';
 
 export default function AudioPlayerApp() {
@@ -26,7 +25,6 @@ export default function AudioPlayerApp() {
   const [duration, setDuration] = useState(174);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackMode, setPlaybackMode] = useState('off'); // 'off' (stop at end) | 'repeat-all' | 'repeat-one' | 'shuffle'
-  const [isFrameEnabled, setIsFrameEnabled] = useState(true);
 
   // Modals
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -332,15 +330,12 @@ export default function AudioPlayerApp() {
   };
 
   return (
-    <PhoneFrame
-      isFrameEnabled={isFrameEnabled}
-      onToggleFrame={() => setIsFrameEnabled(!isFrameEnabled)}
-    >
+    <main className="min-h-screen bg-[#111214] flex justify-center text-white antialiased selection:bg-blue-500 selection:text-white">
       {/* Toast Notification */}
       <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
 
-      {/* Main Screen Layout */}
-      <div className="flex-1 flex flex-col justify-between py-1 bg-[#161719] text-white select-none">
+      {/* Main Responsive Music Player Container */}
+      <div className="w-full max-w-md min-h-screen bg-[#161719] flex flex-col justify-between py-2 sm:px-2 shadow-2xl relative overflow-hidden sm:my-4 sm:rounded-[36px] sm:border sm:border-white/5">
 
         {/* Top Navigation */}
         <TopBar
@@ -390,64 +385,63 @@ export default function AudioPlayerApp() {
           onTogglePlayPause={handleTogglePlay}
         />
 
-      </div>
+        {/* Modals & Drawers */}
+        <VoiceSearchModal
+          isOpen={isVoiceModalOpen}
+          onClose={() => {
+            setIsVoiceModalOpen(false);
+            setIsVoiceListening(false);
+            if (voiceServiceRef.current) voiceServiceRef.current.stopListening();
+          }}
+          transcript={voiceTranscript}
+          isListening={isVoiceListening}
+          isSearchingOnline={isSearchingOnline}
+          searchResults={searchResults}
+          onPerformSearch={performVoiceSearch}
+          onSelectSong={playSelectedSong}
+          matchedSong={matchedSong}
+        />
 
-      {/* Modals & Drawers */}
-      <VoiceSearchModal
-        isOpen={isVoiceModalOpen}
-        onClose={() => {
-          setIsVoiceModalOpen(false);
-          setIsVoiceListening(false);
-          if (voiceServiceRef.current) voiceServiceRef.current.stopListening();
-        }}
-        transcript={voiceTranscript}
-        isListening={isVoiceListening}
-        isSearchingOnline={isSearchingOnline}
-        searchResults={searchResults}
-        onPerformSearch={performVoiceSearch}
-        onSelectSong={playSelectedSong}
-        matchedSong={matchedSong}
-      />
-
-      <QueueDrawer
-        isOpen={isQueueOpen}
-        onClose={() => setIsQueueOpen(false)}
-        playlist={playlist}
-        currentSong={currentSong}
-        onSelectSong={(song) => {
-          const idx = playlist.findIndex((s) => s.id === song.id);
-          if (idx !== -1) {
-            setCurrentSongIndex(idx);
-            if (audioEngine) {
-              audioEngine.playSong(song);
-              setIsPlaying(true);
+        <QueueDrawer
+          isOpen={isQueueOpen}
+          onClose={() => setIsQueueOpen(false)}
+          playlist={playlist}
+          currentSong={currentSong}
+          onSelectSong={(song) => {
+            const idx = playlist.findIndex((s) => s.id === song.id);
+            if (idx !== -1) {
+              setCurrentSongIndex(idx);
+              if (audioEngine) {
+                audioEngine.playSong(song);
+                setIsPlaying(true);
+              }
+              showToast(`Now Playing: ${song.title}`);
             }
-            showToast(`Now Playing: ${song.title}`);
-          }
-        }}
-        isPlaying={isPlaying}
-      />
+          }}
+          isPlaying={isPlaying}
+        />
 
-      <MoreOptionsModal
-        isOpen={isMoreOpen}
-        onClose={() => setIsMoreOpen(false)}
-        song={currentSong}
-        onToast={showToast}
-      />
+        <MoreOptionsModal
+          isOpen={isMoreOpen}
+          onClose={() => setIsMoreOpen(false)}
+          song={currentSong}
+          onToast={showToast}
+        />
 
-      <LyricsModal
-        isOpen={isLyricsOpen}
-        onClose={() => setIsLyricsOpen(false)}
-        song={currentSong}
-        currentTime={currentTime}
-        isPlaying={isPlaying}
-      />
+        <LyricsModal
+          isOpen={isLyricsOpen}
+          onClose={() => setIsLyricsOpen(false)}
+          song={currentSong}
+          currentTime={currentTime}
+          isPlaying={isPlaying}
+        />
 
-      <InfoModal
-        isOpen={isInfoOpen}
-        onClose={() => setIsInfoOpen(false)}
-        song={currentSong}
-      />
-    </PhoneFrame>
+        <InfoModal
+          isOpen={isInfoOpen}
+          onClose={() => setIsInfoOpen(false)}
+          song={currentSong}
+        />
+      </div>
+    </main>
   );
 }
